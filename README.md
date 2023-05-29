@@ -1,6 +1,7 @@
 ## Conditional ARDM - PyTorch Implementation
 
 This repository presents a conditional version of the ARDM model https://arxiv.org/abs/2110.02037.
+
 Official code available at: https://github.com/google-research/google-research/tree/master/autoregressive_diffusion. 
 
 This version empowers the ARDM to model P(X|Z) instead of the typical P(X). For this to work, Z must be of the same shape as X. In case Z is not of the same shape, it can be projected to the same shape to ensure the model's functionality, i.e., P(X|projection(Z)).
