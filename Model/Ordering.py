@@ -6,23 +6,14 @@ class Ordering:
     """
     Class for generating random and strategic orderings for AR models 
     """
-    def __init__(self, data_shape: List[int], RGB_channel_grouping=True):
+    def __init__(self, data_shape: List[int]):
         """
         :param data_shape: (list) Shape of the data to be ordered
         :param RGB_channel_grouping: (bool) Whether to treat RGB channels as one dimension
         """
 
         self.data_shape = data_shape
-
-
-        # RGB channel grouping is only used for image data with three channels. As such we only turn this on if the data has 3 channels
-        if RGB_channel_grouping and data_shape[0] == 3:
-            self.RGB_channel_grouping = True
-            self.dims = np.prod(self.data_shape) // 3 # Since we are treating RGB channels as one dimension
-            self.group_channel_data_shape = (data_shape[1],data_shape[2])
-        else:
-            self.RGB_channel_grouping = False
-            self.dims = np.prod(self.data_shape) # Treats each R-G-B value as a separate dimension
+        self.dims = np.prod(self.data_shape) # Treats each R-G-B value as a separate dimension
 
 
         # Dummy values to reshape dims of timestep tensor to allow timestep comparison ( need list of 1s size of data_shape)
@@ -63,10 +54,8 @@ class Ordering:
         """
         sigma = torch.rand(size=(batch_size, self.dims))
         
-        if self.RGB_channel_grouping:
-            sigma = torch.argsort(sigma, dim=-1).reshape(batch_size, *self.group_channel_data_shape).unsqueeze(1).expand(-1, 3, -1, -1)
-        else:
-            sigma = torch.argsort(sigma, dim=-1).reshape(batch_size, *self.data_shape)
+
+        sigma = torch.argsort(sigma, dim=-1).reshape(batch_size, *self.data_shape)
 
 
         return sigma

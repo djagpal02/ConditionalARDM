@@ -1,0 +1,5 @@
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+new_cfg: CIFAR10/ARDM

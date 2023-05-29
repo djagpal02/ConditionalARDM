@@ -7,7 +7,7 @@ from Model.Ordering import Ordering
 
 
 
-def get_ARDM(config, conditional_model=True):
+def get_ARDM(config, conditional_model):
     """
     Loads and returns model
 
@@ -15,26 +15,33 @@ def get_ARDM(config, conditional_model=True):
     :return: Model
     """
     if config.dataset == "CIFAR10":
+        # Set up univariate distributions
         ud = CIFAR10
 
-    ardm_unet = UNet(
-                    image_channels= config.image_channels,
-                    n_channels=config.n_channels,
-                    param_channels=config.param_channels,
-                    ch_mults=config.ch_mults,
-                    is_attn=config.is_attn,
-                    n_blocks=config.n_blocks,
-                    dropout=config.dropout,
-                    max_time=config.n_dims,
-                    group_norm_n = config.group_norm_n,
-                    conditional_model=conditional_model)
+    # Set up Architecture
+    # UNet used in orignial ARDM paper
+    if config.architecture == "UNet":
+        ardm_net = UNet(
+                        image_channels= 3,
+                        n_channels=256,
+                        param_channels=768,
+                        ch_mults=[1],
+                        is_attn=True,
+                        n_blocks=32,
+                        dropout=0.,
+                        max_time=3072,
+                        group_norm_n = 32,
+                        conditional_model=conditional_model)
         
+
+
+    # Build Model    
     ardm = ARDM(
-                Net=ardm_unet,
+                Net=ardm_net,
                 univariate_distributions=ud,
                 data_shape=config.data_shape,
-                num_params_per_dist=config.param_channels,
+                num_params_per_dist=768,
                 conditioned_on_x_hat=conditional_model, 
-                ordering=Ordering(config.data_shape, config.RGB_channel_grouping))
+                ordering=Ordering(config.data_shape))
 
     return ardm

@@ -1,0 +1,70 @@
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+data_dir: ./Data/datasets/
+model_dir: ./Checkpoints/ # Saves and loads models checkpoints here
+sample_dir: ./Samples/ # Saves and loads models checkpoints here
+save_name: None # Runner will try to load from this name if it exists, if None then will create a new model
+
+# Run setup
+model_name: ARDM # ARVAE / ARDM / VAE
+Train: False # Enable and disable training
+Test: False # Enable and disable testing
+Sample: False # Enable and disable sampling
+
+
+
+#GPUs (input as a list)
+gpu_ids: [0,1,2,3,4,5,6,7]
+port: '12356' # Port for DDP
+
+
+# Dataset
+dataset: CIFAR10
+Reduction: 
+batch_size: 16
+data_shape: [3,32,32]
+n_dims: 3072 # Input with pixel RGB as dims, if RGB enabled model will group them as nessesary and divide by 3
+
+
+# Set True if conditional model
+conditioned_on_x_hat: False
+# If using conditional model, must select one of the following: x_given_x  or x_given_blur_x -- only two options currnetly implemented, if using non-conditional model leave empty (is equivalent to None)
+x_hat:
+architechture: UNet
+
+
+# Training
+lr: 1e-4
+clip_grad: 100.
+
+# Early stopping
+patience: 50
+tolerance: 0.01
+epochs_without_improvement: # Leave empty unless resuming training from a checkpoint
+best_valid_loss: # leave empty unless resuming training from a checkpoint
+
+
+# Logging
+max_epochs: 1000
+test_every: 5
+save_every: 100
+print_batch_loss: False
+active_log: False # If true will log to wandb
+log_online: True # Stores wandb logs locally
+project_name: CIFAR10
+run_name: ARDM
+
+
+# Testing -
+approx_test: False # Approximate full test with single timestep
+print_stats: False # Print per dim stats while calculating full test
+final_test: False # Final test switches validation set for test set
+
+# Sampling
+num_samples: 100 # Number of samples to generate
+num_forward_passes: # Number of forward passes to generate samples
+
+
+# Save files will depend on project_name and run_name
