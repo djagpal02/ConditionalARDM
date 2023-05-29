@@ -22,11 +22,7 @@ class RunnerARDM(RunnerBase):
     def __init__(self, dataset: str, config, model):
         super().__init__(dataset, config, model)
 
-        # Check if we are using RGB Grouping, if so reduce the number of dimensions ( When enabled RGB treated as 1 dimension rather than 3)
-        if self.config.RGB_channel_grouping:
-            self.num_dims = self.config.n_dims // 3
-        else:
-            self.num_dims = self.config.n_dims
+        self.num_dims = self.config.n_dims
 
 
     ################################################################################################################################################################################
@@ -143,16 +139,8 @@ class RunnerARDM(RunnerBase):
         x_out = torch.zeros(data_shape).to(gpu_id, non_blocking=True)
 
 
-        # Sample orderings based on chosen sampling method        
-        if ADS:
-            sigma = self.model.ordering.Sample_ADS_orderings(num_samples, num_forward_passes, random_every)
-            print(f'Using Adaptive Dimension Sampling. The model will forward pass {num_forward_passes} times, sampling {self.num_dims // num_forward_passes} dimensions each time and randomly sampling every {random_every}th forward pass ')
-        else:
-            sigma = self.model.ordering.sample_random_orderings(num_samples)
 
-        # Incase RGB-grouping is turned off (non-RGB-Grouping ADS is not yet implemented)
-        if sigma is None:
-            raise NotImplemented('No orderings sampled')
+        sigma = self.model.ordering.sample_random_orderings(num_samples)
 
 
         # Check if sampling multiple dimensions per forward pass

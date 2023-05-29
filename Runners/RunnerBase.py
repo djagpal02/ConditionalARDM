@@ -10,16 +10,15 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 import torch.distributed as dist
 
-import numpy as np
 import wandb
 
-from Data.Data import get_loaders, get_cond_ARDM_loaders
-from utils import save_checkpoint, load_checkpoint, timer, loss_array_to_loss
+from Data.Data import get_loaders
+from utils import save_checkpoint, load_checkpoint, timer
 
 
 class RunnerBase(ABC):
     """
-    Base class to run training, testing, and sampling of ARVAE
+    Base class to run training, testing, and sampling
     """
 
     def __init__(self, dataset: str, config, model):
@@ -29,7 +28,7 @@ class RunnerBase(ABC):
         : param dataset: (str) Name of dataset to use
         : param gpu_id: (int) ID of GPU to use
         : param config: (DictConfig) Config file
-        : param model: (ARVAE) ARVAE model
+        : param model:  model
         """
         # Set up config and model
         self.config = config

@@ -9,7 +9,6 @@ class Ordering:
     def __init__(self, data_shape: List[int]):
         """
         :param data_shape: (list) Shape of the data to be ordered
-        :param RGB_channel_grouping: (bool) Whether to treat RGB channels as one dimension
         """
 
         self.data_shape = data_shape

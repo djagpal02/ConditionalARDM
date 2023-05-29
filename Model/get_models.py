@@ -18,7 +18,7 @@ def get_ARDM(config, conditional_model):
         # Set up univariate distributions
         ud = CIFAR10
 
-    # Set up Architecture
+    # Set up architechture
     # UNet used in orignial ARDM paper
     if config.architecture == "UNet":
         ardm_net = UNet(
@@ -26,7 +26,7 @@ def get_ARDM(config, conditional_model):
                         n_channels=256,
                         param_channels=768,
                         ch_mults=[1],
-                        is_attn=True,
+                        is_attn=[True],
                         n_blocks=32,
                         dropout=0.,
                         max_time=3072,

@@ -8,7 +8,7 @@ sample_dir: ./Samples/ # Saves and loads models checkpoints here
 save_name: None # Runner will try to load from this name if it exists, if None then will create a new model
 
 # Run setup
-model_name: ARDM # ARVAE / ARDM / VAE
+model_name: ARDM 
 Train: False # Enable and disable training
 Test: False # Enable and disable testing
 Sample: False # Enable and disable sampling
@@ -32,7 +32,7 @@ n_dims: 3072 # Input with pixel RGB as dims, if RGB enabled model will group the
 conditioned_on_x_hat: False
 # If using conditional model, must select one of the following: x_given_x  or x_given_blur_x -- only two options currnetly implemented, if using non-conditional model leave empty (is equivalent to None)
 x_hat:
-architechture: UNet
+architecture: UNet
 
 
 # Training
