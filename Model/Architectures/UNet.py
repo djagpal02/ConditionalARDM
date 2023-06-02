@@ -1,30 +1,51 @@
-from typing import  Tuple, Union, List
+"""
+U-Net architecture used in DDPM paper: https://arxiv.org/abs/2006.11239 for image reconstruction and in ARDM paper: https://arxiv.org/abs/2110.02037 for density modeling and generation.
+Used for image reconstruction, and for the image decoder in the our model.
+"""
+# Standard library imports
+from typing import Tuple, Union, List
+
+# Third-party library imports
 import torch
 from torch import nn
+
+# Local imports
 from Model.Architectures.layers import *
-from Model.Architectures.x_hat_mod import modified_InputEmbedding
+from Model.Architectures.x_hat_mod import ModifiedInputEmbedding
+
 
 class UNet(nn.Module):
     """
-    U-Net architecture used in DDPM paper: https://arxiv.org/abs/2006.11239 for image reconstruction and in ARDM paper: https://arxiv.org/abs/2110.02037 for density modeling and generation.
-    Used for image reconstruction, and for the image decoder in the our model.
+    Class for UNet architecture.
     """
 
-    def __init__(self, image_channels: int = 3, n_channels: int = 256, param_channels: int = 3*256,
-                 ch_mults: Union[Tuple[int, ...], List[int]] = (1, 2, 2, 4),
-                 is_attn: Union[Tuple[bool, ...], List[int]] = (False, False, True, True),
-                 n_blocks: int = 2, dropout: float = 0.1, max_time: int =3072, group_norm_n: int = 32, conditional_model: bool=False):
+    def __init__(
+        self,
+        image_channels: int = 3,
+        n_channels: int = 256,
+        param_channels: int = 3 * 256,
+        ch_mults: Union[Tuple[int, ...], List[int]] = (1, 2, 2, 4),
+        is_attn: Union[Tuple[bool, ...], List[int]] = (False, False, True, True),
+        n_blocks: int = 2,
+        dropout: float = 0.1,
+        max_time: int = 3072,
+        group_norm_n: int = 32,
+        conditional_model: bool = False,
+    ):
         """
-        :param image_channels: Number of channels in the input image
-        :param n_channels: Number of channels in the first layer
-        :param param_channels: Number of channels in the output, which is the number of parameters for the distribution
-        :param ch_mults: Number of channels at each resolution is multiplied by this number
-        :param is_attn: Whether to use attention at each resolution
-        :param n_blocks: Number of blocks at each resolution
-        :param dropout: Dropout rate
-        :param max_time: Maximum time for the time embedding
-        :param group_norm_n: Number of groups for group normalization
-        :param conditional_model: Whether to use the conditional model (model P(x|other params) instead of P(x))
+        Initialize the UNet model.
+
+        Args:
+            image_channels (int, optional): The number of channels in the input image. Default is 3.
+            n_channels (int, optional): Base number of channels in convolutional layers. Default is 256.
+            param_channels (int, optional): The number of channels in the parameter tensor. Default is 3 * 256.
+            ch_mults (tuple or list, optional): Channel multipliers for each resolution level in the U-Net. Default is (1, 2, 2, 4).
+            is_attn (tuple or list, optional): Whether to use attention in each resolution level. Default is (False, False, True, True).
+            n_blocks (int, optional): The number of blocks in each resolution level. Default is 2.
+            dropout (float, optional): Dropout rate. Default is 0.1.
+            max_time (int, optional): Maximum sequence length for time embedding. Default is 3072.
+            group_norm_n (int, optional): Number of groups for Group Normalization. Default is 32.
+            conditional_model (bool, optional): Whether to use conditional model. Default is False.
         """
         super().__init__()
 
@@ -32,18 +53,20 @@ class UNet(nn.Module):
         self.max_time = max_time
         self.conditional_model = conditional_model
         n_resolutions = len(ch_mults)
-        n_classes = param_channels // image_channels # Number of classes for output (possible outputs)
+        n_classes = (
+            param_channels // image_channels
+        )  # Number of classes for output (possible outputs)
 
-        
-        # Project image into feature map using our modified InputEmbedding that allows for conditional models, this is the key difference between our model and the one used in ARDM model
+        # Project image into feature map using our modified InputEmbedding that allows for conditional models,
+        # this is the key difference between our model and the one used in ARDM model
         #####################################################################################################
-        self.image_proj = modified_InputEmbedding(n_classes, n_channels, image_channels, conditional_model)
+        self.image_proj = ModifiedInputEmbedding(
+            n_classes, n_channels, image_channels, conditional_model
+        )
         #####################################################################################################
 
         # Time embedding layer.
         self.time_emb = TimeEmbedding(n_channels, max_time=max_time)
-
-        
 
         #####################################################################################################
         # First half of U-Net - decreasing resolution
@@ -57,7 +80,16 @@ class UNet(nn.Module):
             out_channels = in_channels * ch_mults[i]
             # Add `n_blocks`
             for _ in range(n_blocks):
-                down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i], dropout=dropout,group_norm_n=group_norm_n))
+                down.append(
+                    DownBlock(
+                        in_channels,
+                        out_channels,
+                        n_channels * 4,
+                        is_attn[i],
+                        dropout=dropout,
+                        group_norm_n=group_norm_n,
+                    )
+                )
                 in_channels = out_channels
             # Down sample at all resolutions except the last
             if i < n_resolutions - 1:
@@ -66,16 +98,12 @@ class UNet(nn.Module):
         # Combine the set of modules
         self.down = nn.ModuleList(down)
 
-
-
-
         #####################################################################################################
         # Middle block
         #####################################################################################################
-        self.middle = MiddleBlock(out_channels, n_channels * 4, dropout=dropout,group_norm_n=group_norm_n)
-
-
-
+        self.middle = MiddleBlock(
+            out_channels, n_channels * 4, dropout=dropout, group_norm_n=group_norm_n
+        )
 
         #####################################################################################################
         # Second half of U-Net - increasing resolution
@@ -88,10 +116,28 @@ class UNet(nn.Module):
             # `n_blocks` at the same resolution
             out_channels = in_channels
             for _ in range(n_blocks):
-                up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i], dropout=dropout,group_norm_n=group_norm_n))
+                up.append(
+                    UpBlock(
+                        in_channels,
+                        out_channels,
+                        n_channels * 4,
+                        is_attn[i],
+                        dropout=dropout,
+                        group_norm_n=group_norm_n,
+                    )
+                )
             # Final block to reduce the number of channels
             out_channels = in_channels // ch_mults[i]
-            up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i], dropout=dropout,group_norm_n=group_norm_n))
+            up.append(
+                UpBlock(
+                    in_channels,
+                    out_channels,
+                    n_channels * 4,
+                    is_attn[i],
+                    dropout=dropout,
+                    group_norm_n=group_norm_n,
+                )
+            )
             in_channels = out_channels
             # Up sample at all resolutions except last
             if i > 0:
@@ -100,7 +146,6 @@ class UNet(nn.Module):
         # Combine the set of modules
         self.up = nn.ModuleList(up)
 
-
         #####################################################################################################
         # Final normalization and convolution layer to output distribution parameters
         #####################################################################################################
@@ -108,22 +153,25 @@ class UNet(nn.Module):
         self.act = nn.SiLU()
         self.final = conv3x3_ddpm_init(in_channels, param_channels, padding=(1, 1))
 
-    def forward(self, x: List[torch.Tensor], t: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: List[torch.Tensor], t: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
         """
-        Forwards pass of U-Net
+        Forward pass of the UNet model.
 
-        :param x: List of one or two things - input data alone or with x_hat (what it is conditioned on) both of size[batch_size, in_channels, height, width]
-        :param t: Contains the timsteps for each image in the batch, of size [batch_size]
-        :param mask: Contains the mask for each image in the batch, of size [batch_size, in_channels, height, width]
+        Args:
+            x (List[torch.Tensor]): List of input tensors.
+            t (torch.Tensor): Tensor of timestamps.
+            mask (torch.Tensor): Tensor of masks.
 
-        :return: Distribution parameters of size [batch_size, param_channels, height, width]
+        Returns:
+            torch.Tensor: Output tensor.
         """
-
         # Get time-step embeddings
         t = self.time_emb(t)
 
         # Get image projection
-        x = self.image_proj(x,mask)
+        x = self.image_proj(x, mask)
 
         # `h` will store outputs at each resolution for skip connection
         h = [x]
@@ -131,11 +179,10 @@ class UNet(nn.Module):
         for m in self.down:
             x = m(x, t)
             h.append(x)
-            
 
         # Middle (bottom)
         x = self.middle(x, t)
-        
+
         # Second half of U-Net
         for m in self.up:
             if isinstance(m, Upsample):
@@ -149,5 +196,5 @@ class UNet(nn.Module):
 
         # Final normalization and convolution
         x = self.final(self.act(self.norm(x)))
-        
+
         return x

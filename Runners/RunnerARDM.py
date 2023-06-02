@@ -1,14 +1,20 @@
-from Runners.RunnerBase import RunnerBase
+"""
+    Child class of RunnerBase for ARDM model
 
-from typing import Optional, Tuple, Union, List, Dict
+    Supports training, testing, and sampling of conditional and standard ARDM model
+"""
+# Standard library imports
+from typing import Optional, Tuple, Dict
+import time
+
+# Third-party library imports
 import torch
 import torch.multiprocessing as mp
 from torch.utils.data import DataLoader
 
-import numpy as np
-import wandb
-import time
-from Data.Data import get_loaders, get_cond_ARDM_loaders
+# Local imports
+from Runners.runnerbase import RunnerBase
+from Data.data import get_loaders, get_cond_ardm_loaders
 from utils import loss_array_to_loss
 
 
@@ -25,7 +31,7 @@ class RunnerARDM(RunnerBase):
     ################################################################################################################################################################################
     def get_data_loaders(self, dataset: str, config):
         if self.model.conditioned_on_x_hat and config.x_hat is not None:
-            return get_cond_ARDM_loaders(dataset, config)
+            return get_cond_ardm_loaders(dataset, config)
         elif not self.model.conditioned_on_x_hat:
             return get_loaders(dataset, config)
         else:

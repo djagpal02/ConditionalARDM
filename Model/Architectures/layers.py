@@ -1,17 +1,26 @@
+"""
+This module provides all component layers of the DDPM UNet. 
+
+This code is a slightly modified version of the one presented in: https://github.com/AndyShih12/mac .
+
+"""
+# Standard library imports
 import math
-import numpy as np
-from typing import Optional, Tuple, Union, List
 import string
+from typing import Optional, Union
+
+# Third-party library imports
+import numpy as np
+import torch  # type: ignore
+from torch import nn
 import torch.nn.functional as F
 
-import torch
-from torch import nn
 
-def variance_scaling(scale, mode, distribution,
-                     in_axis=1, out_axis=0,
-                     dtype=torch.float32,
-                     device='cpu'):
-    """Ported from JAX. """
+def variance_scaling(
+    scale, mode, distribution, in_axis=1, out_axis=0, dtype=torch.float32, device="cpu"
+):
+    """Ported from JAX."""
+
     def _compute_fans(shape, in_axis=1, out_axis=0):
         receptive_field_size = np.prod(shape) / shape[in_axis] / shape[out_axis]
         fan_in = shape[in_axis] * receptive_field_size
@@ -28,21 +37,25 @@ def variance_scaling(scale, mode, distribution,
             denominator = (fan_in + fan_out) / 2
         else:
             raise ValueError(
-            "invalid mode for variance scaling initializer: {}".format(mode))
+                "invalid mode for variance scaling initializer: {}".format(mode)
+            )
         variance = scale / denominator
         if distribution == "normal":
             return torch.randn(*shape, dtype=dtype, device=device) * np.sqrt(variance)
         elif distribution == "uniform":
-            return (torch.rand(*shape, dtype=dtype, device=device) * 2. - 1.) * np.sqrt(3 * variance)
+            return (
+                torch.rand(*shape, dtype=dtype, device=device) * 2.0 - 1.0
+            ) * np.sqrt(3 * variance)
         else:
             raise ValueError("invalid distribution for variance scaling initializer")
 
     return init
 
-def default_init(scale: float=1.):
+
+def default_init(scale: float = 1.0):
     """The same initialization used in DDPM."""
     scale = 1e-10 if scale == 0 else scale
-    return variance_scaling(scale, 'fan_avg', 'uniform')
+    return variance_scaling(scale, "fan_avg", "uniform")
 
 
 def linear_ddpm_init(inp: int, out: int):
@@ -52,18 +65,52 @@ def linear_ddpm_init(inp: int, out: int):
 
     return linear
 
-def conv1x1_ddpm_init(in_channels: int, out_channels: int, stride=1, bias: bool=True, init_scale: float=1., padding=0):
+
+def conv1x1_ddpm_init(
+    in_channels: int,
+    out_channels: int,
+    stride=1,
+    bias: bool = True,
+    init_scale: float = 1.0,
+    padding=0,
+):
     """1x1 convolution with DDPM initialization."""
-    conv = nn.Conv2d(in_channels, out_channels, kernel_size=(1,1), stride=stride, padding=padding, bias=bias)
+    conv = nn.Conv2d(
+        in_channels,
+        out_channels,
+        kernel_size=(1, 1),
+        stride=stride,
+        padding=padding,
+        bias=bias,
+    )
     conv.weight.data = default_init(init_scale)(conv.weight.data.shape)
+    assert conv.bias is not None
     nn.init.zeros_(conv.bias)
 
     return conv
 
-def conv3x3_ddpm_init(in_channels: int, out_channels: int,stride=1, bias: bool=True, dilation=1, init_scale: float=1., padding=1):
+
+def conv3x3_ddpm_init(
+    in_channels: int,
+    out_channels: int,
+    stride=1,
+    bias: bool = True,
+    dilation=1,
+    init_scale: float = 1.0,
+    padding=1,
+):
     """3x3 convolution with DDPM initialization."""
-    conv = nn.Conv2d(in_channels, out_channels, kernel_size=(3,3), stride=stride, padding=padding, dilation=dilation, bias=bias)
+    conv = nn.Conv2d(
+        in_channels,
+        out_channels,
+        kernel_size=(3, 3),
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        bias=bias,
+    )
     conv.weight.data = default_init(init_scale)(conv.weight.data.shape)
+    assert conv.bias is not None
     nn.init.zeros_(conv.bias)
 
     return conv
@@ -83,20 +130,20 @@ class TimeEmbedding(nn.Module):
         self.max_time = max_time
 
         # First linear layer
-        self.lin1 = linear_ddpm_init(self.n_channels, self.n_channels*4)
+        self.lin1 = linear_ddpm_init(self.n_channels, self.n_channels * 4)
 
         # Activation
         self.act = nn.SiLU()
 
         # Second linear layer
-        self.lin2 = linear_ddpm_init(self.n_channels*4, self.n_channels*4)
-        
+        self.lin2 = linear_ddpm_init(self.n_channels * 4, self.n_channels * 4)
+
     def forward(self, t: torch.Tensor):
         # Create sinusoidal position embeddings
         # [same as those from the transformer](../../transformers/positional_encoding.html)
 
         half_dim = self.n_channels // 2
-        emb = math.log(self.max_time) / (half_dim - 1)
+        emb = torch.Tensor(math.log(self.max_time) / (half_dim - 1))
         emb = torch.exp(torch.arange(half_dim, device=t.device) * -emb)
         emb = t.float()[:, None] * emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=1)
@@ -106,14 +153,16 @@ class TimeEmbedding(nn.Module):
         emb = self.act(self.lin1(emb))
         emb = self.lin2(emb)
 
-        assert(emb.shape == (t.shape[0], self.n_channels * 4))
+        assert emb.shape == (t.shape[0], self.n_channels * 4)
 
         return emb
+
 
 class InputEmbedding(nn.Module):
     """
     Input Processing and class embeddings
     """
+
     def __init__(self, n_classes, n_channels, input_channels):
         super().__init__()
 
@@ -123,16 +172,18 @@ class InputEmbedding(nn.Module):
         self.input_channels = input_channels
 
         # Input Processing
-        assert(self.n_channels % 4 == 0)
-        
+        assert self.n_channels % 4 == 0
+
         # Convolutions over mask and input
-        self.conv_1 = conv3x3_ddpm_init(self.input_channels * 2, self.n_channels * 3 // 4)
+        self.conv_1 = conv3x3_ddpm_init(
+            self.input_channels * 2, self.n_channels * 3 // 4
+        )
 
         # Class embedding
         self.class_embed = nn.Embedding(self.n_classes, self.n_channels // 4)
-        self.linear_1 = linear_ddpm_init(self.input_channels * self.n_channels // 4, self.n_channels // 4)
-
-
+        self.linear_1 = linear_ddpm_init(
+            self.input_channels * self.n_channels // 4, self.n_channels // 4
+        )
 
     def forward(self, x, mask):
         """
@@ -140,10 +191,10 @@ class InputEmbedding(nn.Module):
         * `t` has shape `[batch_size, time_channels]`
         * 'mask' has shape '[batch_size, in_channels, height, width]'
 
-        ** Module assumes data (x) is in 0-256 bit format 
+        ** Module assumes data (x) is in 0-256 bit format
         """
-        assert(self.n_classes >= 1)
-        
+        assert self.n_classes >= 1
+
         xint = x.long()
         x = torch.cat([xint, mask], dim=1)
 
@@ -153,14 +204,17 @@ class InputEmbedding(nn.Module):
         # # Assign 1/4 of channels to class embeddings.
         xint_permute = xint.permute(0, 2, 3, 1)
         emb_x = self.class_embed(xint_permute)
-        emb_x = emb_x.reshape( *xint_permute.shape[:-1], self.input_channels * self.n_channels // 4 )
+        emb_x = emb_x.reshape(
+            *xint_permute.shape[:-1], self.input_channels * self.n_channels // 4
+        )
         h_emb_x = self.linear_1(emb_x)
         h_emb_x = h_emb_x.permute(0, 3, 1, 2)
-        
+
         # Concat input representation to embedding
-        h_first = torch.cat( [ h_first, h_emb_x ], dim=1)
+        h_first = torch.cat([h_first, h_emb_x], dim=1)
 
         return h_first
+
 
 class ResidualBlock(nn.Module):
     """
@@ -169,7 +223,14 @@ class ResidualBlock(nn.Module):
     Each resolution is processed with two residual blocks.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, n_groups: int = 32,  dropout: float = 0.1):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        time_channels: int,
+        n_groups: int = 32,
+        dropout: float = 0.1,
+    ):
         """
         * `in_channels` is the number of input channels
         * `out_channels` is the number of input channels
@@ -218,15 +279,16 @@ class ResidualBlock(nn.Module):
         # Add the shortcut connection and return
         return h + self.shortcut(x)
 
+
 def _einsum(a, b, c, x, y):
-    einsum_str = '{},{}->{}'.format(''.join(a), ''.join(b), ''.join(c))
+    einsum_str = "{},{}->{}".format("".join(a), "".join(b), "".join(c))
     return torch.einsum(einsum_str, x, y)
 
 
 def contract_inner(x, y):
     """tensordot(x, y, 1)."""
-    x_chars = list(string.ascii_lowercase[:len(x.shape)])
-    y_chars = list(string.ascii_lowercase[len(x.shape):len(y.shape) + len(x.shape)])
+    x_chars = list(string.ascii_lowercase[: len(x.shape)])
+    y_chars = list(string.ascii_lowercase[len(x.shape) : len(y.shape) + len(x.shape)])
     y_chars[0] = x_chars[-1]  # first axis of y and last of x get summed
     out_chars = x_chars[:-1] + y_chars[1:]
     return _einsum(x_chars, y_chars, out_chars, x, y)
@@ -237,9 +299,12 @@ class NIN(nn.Module):
     Linear function over channel dim.
     Permutes Channel Dim to end, computes linear transformation and then permutes channels back.
     """
-    def __init__(self, in_dim: int, num_units: int, init_scale: float=0.1):
+
+    def __init__(self, in_dim: int, num_units: int, init_scale: float = 0.1):
         super().__init__()
-        self.W = nn.Parameter(default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True)
+        self.W = nn.Parameter(
+            default_init(scale=init_scale)((in_dim, num_units)), requires_grad=True
+        )
         self.b = nn.Parameter(torch.zeros(num_units), requires_grad=True)
 
     def forward(self, x: torch.Tensor):
@@ -250,20 +315,24 @@ class NIN(nn.Module):
 
 class AttentionBlock(nn.Module):
     """Channel-wise self-attention block."""
-    def __init__(self, n_channels: int, n_heads: int = 1, d_k: int = None, n_groups: int = 32):
+
+    def __init__(
+        self, n_channels: int, n_heads: int = 1, d_k: Optional[int] = None, n_groups: int = 32
+    ):
         super().__init__()
         # Default `d_k`
         if d_k is None:
             d_k = n_channels
-        
-        # Normalization layer
-        self.GroupNorm_0 = nn.GroupNorm(num_groups=n_groups, num_channels=n_channels, eps=1e-6)
 
+        # Normalization layer
+        self.GroupNorm_0 = nn.GroupNorm(
+            num_groups=n_groups, num_channels=n_channels, eps=1e-6
+        )
 
         self.NIN_0 = NIN(n_channels, n_heads * d_k)
         self.NIN_1 = NIN(n_channels, n_heads * d_k)
         self.NIN_2 = NIN(n_channels, n_heads * d_k)
-        self.NIN_3 = NIN(n_heads * d_k, n_channels, init_scale=0.)
+        self.NIN_3 = NIN(n_heads * d_k, n_channels, init_scale=0.0)
 
     def forward(self, x: torch.Tensor, t: Optional[torch.Tensor] = None):
         # `t` is not used, but it's kept in the arguments because for the attention layer function signature
@@ -276,11 +345,11 @@ class AttentionBlock(nn.Module):
         k = self.NIN_1(h)
         v = self.NIN_2(h)
 
-        w = torch.einsum('bchw,bcij->bhwij', q, k) * (int(C) ** (-0.5))
+        w = torch.einsum("bchw,bcij->bhwij", q, k) * (int(C) ** (-0.5))
         w = torch.reshape(w, (B, H, W, H * W))
         w = F.softmax(w, dim=-1)
         w = torch.reshape(w, (B, H, W, H, W))
-        h = torch.einsum('bhwij,bcij->bchw', w, v)
+        h = torch.einsum("bhwij,bcij->bchw", w, v)
         h = self.NIN_3(h)
         return x + h
 
@@ -291,9 +360,25 @@ class DownBlock(nn.Module):
     This combines `ResidualBlock` and `AttentionBlock`. These are used in the first half of U-Net at each resolution.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, has_attn: bool, dropout: float, group_norm_n: int):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        time_channels: int,
+        has_attn: bool,
+        dropout: float,
+        group_norm_n: int,
+    ):
         super().__init__()
-        self.res = ResidualBlock(in_channels, out_channels, time_channels, dropout=dropout, n_groups=group_norm_n)
+        self.res = ResidualBlock(
+            in_channels,
+            out_channels,
+            time_channels,
+            dropout=dropout,
+            n_groups=group_norm_n,
+        )
+
+        self.attn: Union[AttentionBlock, nn.Identity]
         if has_attn:
             self.attn = AttentionBlock(out_channels, n_groups=group_norm_n)
         else:
@@ -311,11 +396,26 @@ class UpBlock(nn.Module):
     This combines `ResidualBlock` and `AttentionBlock`. These are used in the second half of U-Net at each resolution.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, has_attn: bool, dropout: float, group_norm_n: int):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        time_channels: int,
+        has_attn: bool,
+        dropout: float,
+        group_norm_n: int,
+    ):
         super().__init__()
         # The input has `in_channels + out_channels` because we concatenate the output of the same resolution
         # from the first half of the U-Net
-        self.res = ResidualBlock(in_channels + out_channels, out_channels, time_channels, dropout=dropout, n_groups=group_norm_n)
+        self.res = ResidualBlock(
+            in_channels + out_channels,
+            out_channels,
+            time_channels,
+            dropout=dropout,
+            n_groups=group_norm_n,
+        )
+        self.attn: Union[AttentionBlock, nn.Identity]
         if has_attn:
             self.attn = AttentionBlock(out_channels, n_groups=group_norm_n)
         else:
@@ -334,11 +434,25 @@ class MiddleBlock(nn.Module):
     This block is applied at the lowest resolution of the U-Net.
     """
 
-    def __init__(self, n_channels: int, time_channels: int, dropout: float, group_norm_n: int):
+    def __init__(
+        self, n_channels: int, time_channels: int, dropout: float, group_norm_n: int
+    ):
         super().__init__()
-        self.res1 = ResidualBlock(n_channels, n_channels, time_channels, dropout=dropout, n_groups=group_norm_n)
+        self.res1 = ResidualBlock(
+            n_channels,
+            n_channels,
+            time_channels,
+            dropout=dropout,
+            n_groups=group_norm_n,
+        )
         self.attn = AttentionBlock(n_channels, n_groups=group_norm_n)
-        self.res2 = ResidualBlock(n_channels, n_channels, time_channels, dropout=dropout, n_groups=group_norm_n)
+        self.res2 = ResidualBlock(
+            n_channels,
+            n_channels,
+            time_channels,
+            dropout=dropout,
+            n_groups=group_norm_n,
+        )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         x = self.res1(x, t)
@@ -355,9 +469,10 @@ class Upsample(nn.Module):
     def __init__(self, n_channels: int):
         super().__init__()
         self.conv = nn.ConvTranspose2d(n_channels, n_channels, (4, 4), (2, 2), (1, 1))
-        self.conv.weight.data = default_init(1.)(self.conv.weight.data.shape)
+        self.conv.weight.data = default_init(1.0)(self.conv.weight.data.shape)
+        assert self.conv.bias is not None
         nn.init.zeros_(self.conv.bias)
-        
+
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         # `t` is not used, but it's kept in the arguments because for the attention layer function signature
         # to match with `ResidualBlock`.
@@ -373,7 +488,8 @@ class Downsample(nn.Module):
     def __init__(self, n_channels: int):
         super().__init__()
         self.conv = nn.Conv2d(n_channels, n_channels, (3, 3), (2, 2), (1, 1))
-        self.conv.weight.data = default_init(1.)(self.conv.weight.data.shape)
+        self.conv.weight.data = default_init(1.0)(self.conv.weight.data.shape)
+        assert self.conv.bias is not None
         nn.init.zeros_(self.conv.bias)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
