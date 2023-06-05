@@ -1,0 +1,6 @@
+python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=95 ++print_batch_loss=True ++Train=True
+
+python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=95 ++print_batch_loss=True ++Sample=True
+
+python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=95 ++print_batch_loss=True ++Test=True
+

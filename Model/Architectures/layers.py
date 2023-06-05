@@ -143,7 +143,7 @@ class TimeEmbedding(nn.Module):
         # [same as those from the transformer](../../transformers/positional_encoding.html)
 
         half_dim = self.n_channels // 2
-        emb = torch.Tensor(math.log(self.max_time) / (half_dim - 1))
+        emb = math.log(self.max_time) / (half_dim - 1)
         emb = torch.exp(torch.arange(half_dim, device=t.device) * -emb)
         emb = t.float()[:, None] * emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=1)

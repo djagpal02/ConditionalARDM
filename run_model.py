@@ -1,28 +1,70 @@
-from utils import *
-from Runners.RunnerARDM import RunnerARDM
-from Model.get_models import get_ARDM
-from omegaconf import DictConfig, OmegaConf
+"""
+This file is used to run the model
+"""
+# Standard library imports
+import os
+
+# Third-party library imports
+import torch
+from omegaconf import OmegaConf
 from hydra import utils
 import hydra
 
-def verify_samples(runner):
+# Local imports
+from utils import save_samples, print_config, log_stats_to_wandb
+from Runners.runnerardm import RunnerARDM
+from Model.get_models import get_ardm
 
-    x = runner.validloader.dataset.tensors[0][:runner.config.num_samples]
-    x_hat = runner.validloader.dataset.tensors[1][:runner.config.num_samples]
-    samples = runner.Sample(runner.config.num_samples, runner.config.num_forward_passes, runner.config.random_every, runner.config.ADS, return_every=runner.config.return_every, x_hat=x_hat)
+
+def verify_samples(runner):
+    """
+    This function is used to verify the samples of the conditional model. Saves true, blurry and generated samples
+
+    Args:
+        runner (RunnerARDM): Runner object
+    """
+    x = runner.validloader.dataset.tensors[0][: runner.config.num_samples]
+    x_hat = runner.validloader.dataset.tensors[1][: runner.config.num_samples]
+    samples = runner.Sample(
+        runner.config.num_samples,
+        runner.config.num_forward_passes,
+        runner.config.random_every,
+        runner.config.ADS,
+        return_every=runner.config.return_every,
+        x_hat=x_hat,
+    )
 
     # save samples
-    save_samples(x.long().permute(0,2,3,1), dataset = runner.config.dataset, save_dir = runner.config.sample_dir, save_name = "x")
-    save_samples(x_hat.long().permute(0,2,3,1), dataset = runner.config.dataset, save_dir = runner.config.sample_dir, save_name = "blurry_x_hat")
-    save_samples(samples[-1].long().permute(0,2,3,1), dataset = runner.config.dataset, save_dir = runner.config.sample_dir, save_name = runner.config.run_name)
-    
-
-
-
-
+    save_samples(
+        x.long().permute(0, 2, 3, 1),
+        dataset=runner.config.dataset,
+        save_dir=runner.config.sample_dir,
+        save_name="x",
+    )
+    save_samples(
+        x_hat.long().permute(0, 2, 3, 1),
+        dataset=runner.config.dataset,
+        save_dir=runner.config.sample_dir,
+        save_name="blurry_x_hat",
+    )
+    save_samples(
+        samples[-1].long().permute(0, 2, 3, 1),
+        dataset=runner.config.dataset,
+        save_dir=runner.config.sample_dir,
+        save_name=runner.config.run_name,
+    )
 
 
 def update_configs(deafult_config):
+    """
+    This function is used to update the configs with the default configs - dummy config is used for initial loading
+
+    Args:
+        deafult_config (dict): Default config
+
+    Returns:
+        config (dict): Updated config
+    """
     original_cwd = utils.get_original_cwd()
     config_path = f"{original_cwd}/Configs/{deafult_config.new_cfg}"
     config = OmegaConf.load(config_path)
@@ -31,11 +73,11 @@ def update_configs(deafult_config):
     for key, value in deafult_config.items():
         if key in config:
             config[key] = value
-        elif key == 'new_cfg':
+        elif key == "new_cfg":
             pass
         else:
             raise ValueError(f"Unknown Config: {key}")
-        
+
     ## Update Configs ##
     config.model_dir += f"/{config.model_name}/"
     config.sample_dir += f"/{config.model_name}/"
@@ -43,71 +85,79 @@ def update_configs(deafult_config):
     return config
 
 
-
-
-
-
 @hydra.main(config_path="./Configs/", config_name="deafult", version_base=None)
 def run_test(config):
+    """
+    This function is used to run the model
 
+    Args:
+        config (dict): Configs
+
+    Returns:
+        runner (RunnerARDM): Runner object
+    """
     config = update_configs(config)
 
     ## Print Config File ##
     print_config(config)
 
     ## Address wandb logging and errors ##
-    if not config.log_online: 
-        os.environ['WANDB_MODE'] = 'offline'
+    if not config.log_online:
+        os.environ["WANDB_MODE"] = "offline"
     else:
-        if os.name == 'posix':
-            # to fix signal broken pipe error on linux
-            from signal import signal, SIGPIPE, SIG_DFL
-            signal(SIGPIPE,SIG_DFL)
-        
+        if os.name == "posix":
+            from signal import signal, SIGPIPE, SIG_DFL  # to fix signal broken pipe error on linux
+            signal(SIGPIPE, SIG_DFL)
 
     ## Set Multiprocessing Method ##
-    torch.multiprocessing.set_sharing_strategy('file_system')
-    torch.multiprocessing.set_start_method('spawn')
-    
+    torch.multiprocessing.set_sharing_strategy("file_system")
+    torch.multiprocessing.set_start_method("spawn")
 
     print(f"Running {config.run_name}")
 
-
     ## Get Model and Runner ##
-    ardm = get_ARDM(config, config.conditioned_on_x_hat)
-    runner = RunnerARDM(config.dataset, config, ardm)
-    
+    ardm = get_ardm(config, config.conditioned_on_x_hat)
+    runner = RunnerARDM(config, config.dataset, ardm)
+
     print("Model Loaded")
 
     ## Train Model ##
     if config.Train:
         print("Training Model")
-        runner.Train(config.max_epochs)
+        runner.train(config.max_epochs)
 
-
-    ## Test Model ##    
+    ## Test Model ##
     if config.Test:
         if config.final_test:
-            loader = runner.testloader
+            loader = runner.loaders["test"]
         else:
-            loader = runner.validloader
+            loader = runner.loaders["valid"]
 
         print("Testing Model")
-        test_bpd = runner.Test(loader,approx=config.approx_test, print_stats=config.print_stats)
+        test_bpd = runner.test(
+            loader, approx=config.approx_test, print_stats=config.print_stats
+        )
     else:
         test_bpd = None
-
 
     ## Sample from Model ##
     if config.Sample:
         print("Sampling from Model")
-        samples = runner.Sample(config.num_samples, config.num_forward_passes, config.random_every, config.ADS, return_every=config.return_every)
-        if config.save_all_samples:
-            for i in range(len(samples)):
-                save_samples(samples[i].long().permute(0,2,3,1), dataset = config.dataset, save_dir = config.sample_dir, save_name = f"{config.run_name}_{i}")
-        else:
-            save_samples(samples[-1].long().permute(0,2,3,1), dataset = config.dataset, save_dir = config.sample_dir, save_name = config.run_name)
-
+        samples = runner.sample(config.num_samples, config.num_forward_passes)
+        for i, sample in enumerate(samples):
+            save_samples(
+                sample.long().permute(0, 2, 3, 1),
+                dataset=config.dataset,
+                save_dir=config.sample_dir,
+                save_name=f"{config.run_name}_{i}",
+            )
+    else:
+        save_samples(
+            samples[-1].long().permute(0, 2, 3, 1),
+            dataset=config.dataset,
+            save_dir=config.sample_dir,
+            save_name=config.run_name,
+        )
 
     ## Log Stats to Wandb if logging active##
     log_stats_to_wandb(runner, test_bpd)
@@ -117,7 +167,6 @@ def run_test(config):
         verify_samples(runner)
 
     return runner
-
 
 
 if __name__ == "__main__":
