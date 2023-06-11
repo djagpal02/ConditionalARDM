@@ -4,7 +4,7 @@
 """
 
 # Standard library imports
-from typing import List
+from typing import List, Tuple
 
 # Third-party library imports
 import torch
@@ -82,7 +82,7 @@ class Ordering:
 
         return sigma
 
-    def sample_random_masks(self, batch_size: int) -> tuple[torch.Tensor, torch.Tensor]:
+    def sample_random_masks(self, batch_size: int) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Samples random orderings (strategic or otherwise) and then compares with timesteps to generate random masks.
 
@@ -104,7 +104,7 @@ class Ordering:
 
     def sample_masks(
         self, batch_size: int, sigma: torch.Tensor, timesteps: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Samples random orderings (strategic or otherwise) and then compares with timesteps to generate random masks.
 

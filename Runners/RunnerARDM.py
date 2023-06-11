@@ -151,7 +151,7 @@ class RunnerARDM(RunnerBase):
         sigma: Optional[torch.Tensor] = None,
         timestep: Optional[torch.Tensor] = None,
     ) -> Dict[str, float]:
-        self.__epoch_setup(model, split, sigma, timestep)
+        self._epoch_setup(model, split, sigma, timestep)
 
         batch_losses = []
 
@@ -264,33 +264,20 @@ class RunnerARDM(RunnerBase):
         sigma = self.model.ordering.sample_random_orderings(dataloader.batch_size)
         num_dims = self.num_dims
 
-        if self.distributed:
-            with mp.Pool(processes=self.num_gpus) as pool:
-                results = []
-                for i in range(self.num_gpus):
-                    start = i * num_dims // self.num_gpus
-                    end = (i + 1) * num_dims // self.num_gpus
-                    if i == self.num_gpus - 1:
-                        end = num_dims
+        with mp.Pool(processes=self.num_gpus) as pool:
+            results = []
+            for i in range(self.num_gpus):
+                start = i * num_dims // self.num_gpus
+                end = (i + 1) * num_dims // self.num_gpus
+                if i == self.num_gpus - 1:
+                    end = num_dims
+                result = pool.apply_async(self._compute_nll_for_timestep_on_gpu, args= (dataloader, i, start, end, sigma, print_stats))
+                results.append((start, result))
 
-                    result = pool.apply_async(
-                        self.__compute_nll_for_timestep_on_gpu,
-                        args=(i, start, end, dataloader, sigma, print_stats),
-                    )
-                    results.append((start, result))
-
-        else:
-            start = 0
-            end = num_dims
-
-            results = self.__compute_nll_for_timestep_on_gpu(dataloader, 0, start, end, sigma, print_stats)
-
-
-
-        nll = [0] * num_dims
-        for start, result in results:
-            end = start + len(result.get())
-            nll[start:end] = result.get()
+            nll = [0] * num_dims
+            for start, result in results:
+                end = start + len(result.get())
+                nll[start:end] = result.get()
 
         for i in nll:
             if i == 0:
@@ -301,7 +288,7 @@ class RunnerARDM(RunnerBase):
     def _sample(
         self,
         num_samples: int,
-        num_forward_passes: int,
+        num_forward_passes: Optional[int],
         primary_x: Optional[torch.Tensor] = None,
     ) -> List[torch.Tensor]:
         """
@@ -333,7 +320,7 @@ class RunnerARDM(RunnerBase):
 
         sigma = self.model.ordering.sample_random_orderings(num_samples)
 
-        num_dims_per_forward_pass, max_forward_pass = self.__num_dims_sampling(
+        num_dims_per_forward_pass, max_forward_pass, num_forward_passes = self._num_dims_sampling(
             num_forward_passes
         )
 
@@ -393,7 +380,7 @@ class RunnerARDM(RunnerBase):
 
         return savepoints
 
-    def __epoch_setup(self, model, split, sigma, timestep):
+    def _epoch_setup(self, model, split, sigma, timestep):
         torch.set_grad_enabled(split == "train")
         if split == "train":
             model.train()
@@ -403,7 +390,7 @@ class RunnerARDM(RunnerBase):
             assert sigma[0] is not None
             assert timestep is not None
 
-    def __num_dims_sampling(self, num_forward_passes):
+    def _num_dims_sampling(self, num_forward_passes):
         # Check if sampling multiple dimensions per forward pass
         if num_forward_passes is None:
             num_forward_passes = self.num_dims
@@ -417,9 +404,9 @@ class RunnerARDM(RunnerBase):
         # Calculate number of dimensions to sample per forward pass
         num_dims_per_forward_pass = self.num_dims // num_forward_passes
 
-        return num_dims_per_forward_pass, max_forward_pass
+        return num_dims_per_forward_pass, max_forward_pass, num_forward_passes
 
-    def __compute_nll_for_timestep_on_gpu(
+    def _compute_nll_for_timestep_on_gpu(
         self,
         dataloader: DataLoader,
         gpu_id: int,

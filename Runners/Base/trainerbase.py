@@ -179,9 +179,9 @@ class TrainerBase(ABC):
         Returns:
             Tuple: dataloader, model_module, early_stopping, optimizer, master_node
         """
-        # To ensure that only one GPU is used for logging
+        # To ensure that only one GPU is used for logging - will be changed later if not rank 0
         master_node = True
-
+        
         # Set device to GPU
         model = self.model.to(device=rank)
 
@@ -228,6 +228,9 @@ class TrainerBase(ABC):
         Returns:
             Tuple: dataloader, model_module, master_node, optimizer
         """
+        # To ensure that only one GPU is used for logging - will be changed later if not rank 0
+        master_node = True
+
         # Set up the distributed environment
         os.environ["MASTER_ADDR"] = "localhost"
         try:

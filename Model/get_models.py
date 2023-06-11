@@ -5,7 +5,9 @@ Module for loading ARDM models.
 from omegaconf import DictConfig
 
 # Local imports
-from Model.Architectures.UNet import UNet
+from Model.Architectures.unet import UNet
+from Model.Architectures.blocknet import BlockNet
+from Model.Architectures.convnet import ConvNet
 from Model.ARDM import ARDM
 from Model.univariate_distribution import cifar10
 
@@ -31,21 +33,21 @@ def get_ardm(config: DictConfig, conditional_model: bool):
 
     # Set up architechture
     # UNet used in orignial ARDM paper
-#    if config.architecture == "UNet":
-#        ardm_net = UNet(
-#            image_channels=3,
-#            n_channels=256,
-#            param_channels=768,
-#            ch_mults=[1],
-#            is_attn=[True],
-#            n_blocks=32,
-#            dropout=0.0,
-#            max_time=3072,
-#            group_norm_n=32,
-#            conditional_model=conditional_model,
-#        )
-
     if config.architecture == "UNet":
+        ardm_net = UNet(
+            image_channels=3,
+            n_channels=256,
+            param_channels=768,
+            ch_mults=[1],
+            is_attn=[True],
+            n_blocks=32,
+            dropout=0.0,
+            max_time=3072,
+            group_norm_n=32,
+            conditional_model=conditional_model,
+        )
+
+    if config.architecture == "UNet-small":
         ardm_net = UNet(
             image_channels=3,
             n_channels=32,
@@ -53,6 +55,29 @@ def get_ardm(config: DictConfig, conditional_model: bool):
             ch_mults=[1],
             is_attn=[False],
             n_blocks=8,
+            dropout=0.0,
+            max_time=3072,
+            group_norm_n=8,
+            conditional_model=conditional_model,
+        )
+
+    if config.architecture == "BlockNet":
+        ardm_net = BlockNet(
+            image_channels=3,
+            n_channels=32,
+            param_channels=768,
+            dropout=0.0,
+            max_time=3072,
+            group_norm_n=8,
+            conditional_model=conditional_model,
+        )
+
+    if config.architecture == "ConvNet":
+        ardm_net = ConvNet(
+            image_channels=3,
+            n_channels=32,
+            param_channels=768,
+            n_blocks=3,
             dropout=0.0,
             max_time=3072,
             group_norm_n=8,

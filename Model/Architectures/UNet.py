@@ -12,9 +12,9 @@ from torch import nn
 # Local imports
 from Model.Architectures.layers import *
 from Model.Architectures.x_hat_mod import ModifiedInputEmbedding
+from Model.Architectures.netbase import Net
 
-
-class UNet(nn.Module):
+class UNet(Net):
     """
     Class for UNet architecture.
     """
@@ -47,11 +47,10 @@ class UNet(nn.Module):
             group_norm_n (int, optional): Number of groups for Group Normalization. Default is 32.
             conditional_model (bool, optional): Whether to use conditional model. Default is False.
         """
-        super().__init__()
+        super().__init__(max_time=max_time, conditional_model=conditional_model)
 
-        # Save key parameters
-        self.max_time = max_time
-        self.conditional_model = conditional_model
+
+
         n_resolutions = len(ch_mults)
         n_classes = (
             param_channels // image_channels
