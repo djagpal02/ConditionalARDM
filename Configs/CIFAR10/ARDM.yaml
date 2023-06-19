@@ -30,7 +30,7 @@ n_dims: 3072 # Input with pixel RGB as dims, if RGB enabled model will group the
 
 # Set True if conditional model
 conditioned_on_x_hat: False
-# If using conditional model, must select one of the following: x_given_x  or x_given_blur_x -- only two options currnetly implemented, if using non-conditional model leave empty (is equivalent to None)
+# If using conditional model, must select one of the following: x_given_x  or x_given_gentle_blur_x or x_given_medium_blur_x or x_given_strong_blur_x -- only options currnetly implemented, if using non-conditional model leave empty (is equivalent to None)
 x_hat:
 architecture: UNet
 

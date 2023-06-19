@@ -1,6 +1,24 @@
-python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=95 ++print_batch_loss=True ++Train=True
+python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=5 ++print_batch_loss=True ++Train=True
 
-python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=95 ++print_batch_loss=True ++Sample=True
+python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=5 ++print_batch_loss=True ++Sample=True
 
-python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=95 ++print_batch_loss=True ++Test=True
+python run_model.py "new_cfg=CIFAR10/ARDM.yaml" ++Reduction=5 ++print_batch_loss=True ++Test=True
 
+
+
+Num Params for each network:
+
+UNet: 141M
+4715 seconds for 10 epochs with 16 batch size on single gpu -- can be parallelised between 8 gpus to get total batch size of 128 and approx 10 epoch time of 589 seconds
+
+UNet-small: 17M
+375 seconds for 10 epochs with 128 batch size on single gpu
+
+BlockNet: 6M
+118 seconds for 10 epochs with 128 batch size on single gpu
+
+ConvNet: 3M
+47 seconds for 10 epochs with 128 batch size on single gpu
+
+UNet-tiny: 2M
+130 seconds for 10 epochs with 128 batch size on single gpu 

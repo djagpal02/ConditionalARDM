@@ -87,8 +87,32 @@ def get_cond_ardm_loaders(
             testloader = build_loader(
                 torch.utils.data.TensorDataset(te_tensor, te_tensor), config
             )
-        elif config.x_hat == "x_given_blur_x":
-            blurrer = transforms.GaussianBlur(kernel_size=(5, 5), sigma=(0.1, 5))
+        elif config.x_hat == "x_given_gentle_blur_x":
+            blurrer = transforms.GaussianBlur(kernel_size=(3, 3), sigma=(0.1, 5))
+
+            trainloader = build_loader(
+                torch.utils.data.TensorDataset(tr_tensor, blurrer(tr_tensor)), config
+            )
+            validloader = build_loader(
+                torch.utils.data.TensorDataset(va_tensor, blurrer(va_tensor)), config
+            )
+            testloader = build_loader(
+                torch.utils.data.TensorDataset(te_tensor, blurrer(te_tensor)), config
+            )
+        elif config.x_hat == "x_given_medium_blur_x":
+            blurrer = transforms.GaussianBlur(kernel_size=(13, 13), sigma=(0.1, 5))
+
+            trainloader = build_loader(
+                torch.utils.data.TensorDataset(tr_tensor, blurrer(tr_tensor)), config
+            )
+            validloader = build_loader(
+                torch.utils.data.TensorDataset(va_tensor, blurrer(va_tensor)), config
+            )
+            testloader = build_loader(
+                torch.utils.data.TensorDataset(te_tensor, blurrer(te_tensor)), config
+            )
+        elif config.x_hat == "x_given_strong_blur_x":
+            blurrer = transforms.GaussianBlur(kernel_size=(23, 23), sigma=(0.1, 5))
 
             trainloader = build_loader(
                 torch.utils.data.TensorDataset(tr_tensor, blurrer(tr_tensor)), config

@@ -130,12 +130,10 @@ class ConvNet(Net):
             )
             in_channels = out_channels
 
-        # The final block needs to output 'param_channels' number of channels
-        self.blocks.append(
-            ConvBlock(
-                in_channels, param_channels, n_channels * 4, group_norm_n, dropout
-            )
-        )
+        # The final needs to output 'param_channels' number of channels
+        self.norm = nn.GroupNorm(group_norm_n // 4, n_channels)
+        self.act = nn.SiLU()
+        self.final = conv3x3_ddpm_init(n_channels, param_channels, padding=(1, 1))
 
     def forward(
         self, x: List[torch.Tensor], t: torch.Tensor, mask: torch.Tensor
@@ -160,5 +158,8 @@ class ConvNet(Net):
         # Apply the blocks
         for block in self.blocks:
             x = block(x, t)
+
+        # Final normalization and convolution
+        x = self.final(self.act(self.norm(x)))
 
         return x

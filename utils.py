@@ -227,12 +227,12 @@ def log_stats_to_wandb(runner, test_bpd):
 
         # For prelim results, test_bpd is actually the validation bpd (to avoid test set leakage)
         num_gpus = runner.num_gpus
-        train_epoch_time = (
-            runner.train_timer.average_run_time()
-        )  # Average time per epoch in seconds - (per gpu, if using multiple gpus - * num_gpus to get total time for batch_size ))
-        approx_test_epoch_time = runner.approx_test_timer.average_run_time()
-        test_epoch_time = runner.test_timer.average_run_time()
-        sample_gen_time = runner.sample_timer.average_run_time()
+        train_epoch_time = runner.timers[
+            "train"
+        ].average_run_time()  # Average time per epoch in seconds - (per gpu, if using multiple gpus - * num_gpus to get total time for batch_size ))
+        approx_test_epoch_time = runner.timers["approx_test"].average_run_time()
+        test_epoch_time = runner.timers["test"].average_run_time()
+        sample_gen_time = runner.timers["sample"].average_run_time()
 
         # Run your training or evaluation loop and obtain final output values
         output_dict = {

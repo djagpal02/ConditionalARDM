@@ -419,6 +419,7 @@ class TrainerBase(ABC):
             if early_stopping["best_valid_loss"] - valid_loss > self.config.tolerance:
                 early_stopping["best_valid_loss"] = valid_loss
                 early_stopping["epochs_without_improvement"] = 0
+                self._valid_save(model_module)
             else:
                 early_stopping["epochs_without_improvement"] += self.config.test_every
 
@@ -433,6 +434,21 @@ class TrainerBase(ABC):
         """
         dist.broadcast(epochs_without_improvement_tensor, src=0)
         dist.barrier()
+    
+    
+    def _valid_save(self, model_module):
+        """
+        Saves the model if the validation loss is the best validation loss.
+
+        Args:
+            model_module (torch.nn.Module): Model to save
+        """
+        self._save_checkpoint(
+                model_module,
+                f"{self.config.run_name}_best",
+            )
+        print(f"[Epoch {model_module.epoch}] - New Best - Model Parameters Saved")
+
 
     def _train_save(self, model_module, epoch: int, master_node: bool, rank: int):
         """
@@ -448,7 +464,7 @@ class TrainerBase(ABC):
         if master_node and (epoch + 1) % self.config.save_every == 0:
             self._save_checkpoint(
                 model_module,
-                f"{self.config.project_name}_{self.config.run_name}_Epoch_{model_module.epoch}",
+                f"{self.config.run_name}_Epoch_{model_module.epoch}",
             )
             print(f"[GPU{rank}] Epoch {model_module.epoch} Model Parameters Saved")
 
@@ -470,7 +486,7 @@ class TrainerBase(ABC):
 
             self._save_checkpoint(
                 model_module,
-                f"{self.config.project_name}_{self.config.run_name}_Epoch_{model_module.epoch}",
+                f"{self.config.run_name}_Epoch_{model_module.epoch}",
             )
 
             if self.config.active_log:
@@ -621,9 +637,14 @@ class TrainerBase(ABC):
         """
         if save_name == "latest_train":
             # Get the latest saved checkpoint after training
-            save_name = f"{self.config.project_name}_{self.config.model_name}_Epoch_*"
-            path = os.path.join(self.config.model_dir, f"{save_name}.pth")
-            latest_checkpoint = torch.load(max(glob.glob(path), key=os.path.getctime))
+            try:
+                latest_checkpoint = torch.load(f"{self.config.model_dir}{self.config.run_name}_best.pth")
+                print("Loaded best model")
+            except:
+                save_name = f"{self.config.run_name}_Epoch_*"
+                path = os.path.join(self.config.model_dir, f"{save_name}.pth")
+                latest_checkpoint = torch.load(max(glob.glob(path), key=os.path.getctime))
+            
             self.model.load_state_dict(latest_checkpoint["net"])
             self.model.epoch = latest_checkpoint["epoch"]
         else:

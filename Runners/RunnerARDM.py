@@ -53,7 +53,7 @@ class RunnerARDM(RunnerBase):
             "Please check config file for errors in x_hat or conditioned_on_x_hat"
         )
 
-    def sample(self, num_samples: int, num_forward_passes:int) -> torch.Tensor:
+    def sample(self, num_samples: int, num_forward_passes:int, primary_x: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
         Evaluate the model on the test set.
 
@@ -69,7 +69,7 @@ class RunnerARDM(RunnerBase):
         # Start timer
         self.timers["sample"].set_start_time()
         ######################
-        samples = self._sample(num_samples, num_forward_passes)
+        samples = self._sample(num_samples, num_forward_passes, primary_x=primary_x)
         ######################
         # Stop timer
         self.timers["sample"].log_time()
