@@ -46,7 +46,7 @@ def verify_samples(runner):
         samples[-1].long().permute(0, 2, 3, 1),
         dataset=runner.config.dataset,
         save_dir=runner.config.sample_dir,
-        save_name=runner.run_name + "_corrected",
+        save_name=runner.config.run_name + "_corrected",
     )
 
 
